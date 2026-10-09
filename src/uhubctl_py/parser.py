@@ -2,7 +2,9 @@
 
 from __future__ import annotations
 
+import json
 import re
+from typing import Any
 
 from .models import ActionResult, Device, Hub, HubInfo, Port
 
@@ -63,6 +65,50 @@ def _parse_blocks(output: str) -> list[tuple[str, Hub]]:
 def parse_status(output: str) -> list[Hub]:
     """Parse the output of ``uhubctl`` run without an action."""
     return [hub for kind, hub in _parse_blocks(output) if kind == "Current"]
+
+
+def _json_device(d: dict[str, Any]) -> Device | HubInfo:
+    strings = {k: d.get(k, "") for k in ("vendor", "product", "serial")}
+    description = " ".join(v for v in strings.values() if v)
+    hub = d.get("hub")
+    if hub:
+        return HubInfo(
+            vid=d["vid"],
+            pid=d["pid"],
+            description=description,
+            **strings,
+            usb_version=hub["usb_version"],
+            num_ports=hub["nports"],
+            power_switching=hub["power_switching"],
+        )
+    return Device(vid=d["vid"], pid=d["pid"], description=description, **strings)
+
+
+def _json_hub(h: dict[str, Any]) -> Hub:
+    ports = tuple(
+        Port(
+            number=p["port"],
+            status=p["status"],
+            flags=tuple(p["flags"]),
+            device=_json_device(p["device"]) if p["device"] else None,
+        )
+        for p in h["ports"]
+    )
+    return Hub(h["location"], _as_hub_info(_json_device(h["device"])), ports)
+
+
+def parse_json(output: str) -> ActionResult:
+    """Parse the output of ``uhubctl --json``, with or without an action.
+
+    ``before`` holds the status before any action; ``after`` the status after each
+    power step (empty when no action was requested).
+    """
+    data = json.loads(output)
+    return ActionResult(
+        before=tuple(_json_hub(h) for h in data["hubs"]),
+        after=tuple(_json_hub(h) for step in data.get("steps", []) for h in step["hubs"]),
+        raw=output,
+    )
 
 
 def parse_action(output: str) -> ActionResult:

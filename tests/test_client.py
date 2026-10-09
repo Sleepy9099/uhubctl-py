@@ -68,3 +68,21 @@ def test_no_hubs(fake):
 def test_cli_json(fake, capsys):
     assert cli.main(["--json", "list"]) == 0
     assert '"location": "1-1"' in capsys.readouterr().out
+
+
+def test_json_mode_args_and_parse(fake):
+    ctl, calls, replies = fake
+    ctl.json = True
+    replies["stdout"] = (FIXTURES / "macos_via_cycle.json").read_text()
+    result = ctl.cycle("1-1", 1, delay=0.3)
+    assert calls[-1][1:] == ["-a", "2", "-l", "1-1", "-p", "1", "-d", "0.3", "-j"]
+    assert len(result.after) == 4
+
+
+def test_json_autodetect(fake):
+    ctl, calls, replies = fake
+    replies["stdout"] = "--json,     -j - print status as JSON.\n"
+    assert ctl.supports_json
+    ctl2 = Uhubctl()
+    replies["stdout"] = "usage without it"
+    assert not ctl2.supports_json

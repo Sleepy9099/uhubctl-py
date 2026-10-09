@@ -9,7 +9,7 @@ debug anything in Python.
 brew install uhubctl
 # or build the latest source:
 brew install libusb pkg-config
-git clone https://github.com/mvp/uhubctl && cd uhubctl && make
+git clone https://github.com/Sleepy9099/uhubctl && cd uhubctl && make   # fork with --json
 export UHUBCTL_PATH=$PWD/uhubctl
 ```
 
@@ -31,10 +31,12 @@ You can also use `Uhubctl(sudo=True)` / `uhubctl-py --sudo`.
 uhubctl uses libusb, which on Windows can only control a hub after the hub's driver is replaced with
 **WinUSB**:
 
-1. Build uhubctl in an [MSYS2](https://www.msys2.org/) UCRT64 shell:
+1. Download the `uhubctl-windows-x64` artifact from the latest successful
+   [Build run](https://github.com/Sleepy9099/uhubctl/actions/workflows/build.yml) of the fork
+   (`uhubctl.exe` + `libusb-1.0.dll`), or build it yourself in an [MSYS2](https://www.msys2.org/) UCRT64 shell:
    ```bash
    pacman -S --needed git make mingw-w64-ucrt-x86_64-gcc mingw-w64-ucrt-x86_64-libusb mingw-w64-ucrt-x86_64-pkgconf
-   git clone https://github.com/mvp/uhubctl && cd uhubctl && make
+   git clone https://github.com/Sleepy9099/uhubctl && cd uhubctl && make
    ```
    Copy `uhubctl.exe` and `libusb-1.0.dll` (from `/ucrt64/bin`) to the same folder and set
    `UHUBCTL_PATH` to the exe.

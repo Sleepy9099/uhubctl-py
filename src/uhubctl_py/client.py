@@ -11,7 +11,7 @@ from pathlib import Path
 from typing import Any
 
 from .models import Action, ActionResult, Hub, Port
-from .parser import parse_action, parse_status
+from .parser import parse_action, parse_json, parse_status
 
 ENV_BINARY = "UHUBCTL_PATH"
 
@@ -92,6 +92,8 @@ class Uhubctl:
         timeout: Seconds to wait for each invocation.
         force: Pass ``-f`` to operate on hubs uhubctl does not consider smart.
         nodesc: Pass ``-N`` to skip querying device descriptions.
+        json: Use uhubctl's ``--json`` output. ``None`` (default) uses it when the
+            binary supports it and falls back to parsing text otherwise.
     """
 
     def __init__(
@@ -102,12 +104,14 @@ class Uhubctl:
         timeout: float = 60.0,
         force: bool = False,
         nodesc: bool = False,
+        json: bool | None = None,
     ) -> None:
         self.binary = find_binary(binary)
         self.sudo = sudo
         self.timeout = timeout
         self.force = force
         self.nodesc = nodesc
+        self.json: bool | None = json
 
     # -- low level -----------------------------------------------------------------
 
@@ -135,6 +139,27 @@ class Uhubctl:
     def version(self) -> str:
         return self.run(["-v"]).strip()
 
+    @property
+    def supports_json(self) -> bool:
+        """Whether the binary has ``--json`` (stock uhubctl 2.6 does not)."""
+        if self.json is None:
+            try:
+                proc = subprocess.run(
+                    [self.binary, "-h"], capture_output=True, text=True, timeout=self.timeout, check=False
+                )
+                self.json = "--json" in proc.stdout
+            except (OSError, subprocess.TimeoutExpired):
+                self.json = False
+        return self.json
+
+    def _query(self, args: list[str]) -> ActionResult:
+        if self.supports_json:
+            return parse_json(self.run([*args, "-j"]))
+        output = self.run(args)
+        if "-a" in args:
+            return parse_action(output)
+        return ActionResult(before=tuple(parse_status(output)), after=(), raw=output)
+
     # -- queries -------------------------------------------------------------------
 
     def hubs(
@@ -148,9 +173,8 @@ class Uhubctl:
         exact: bool = False,
     ) -> list[Hub]:
         """Return the status of all smart hubs, optionally filtered."""
-        return parse_status(
-            self.run(self._filter_args(location, None, vendor, search, search_hub, level, exact))
-        )
+        args = self._filter_args(location, None, vendor, search, search_hub, level, exact)
+        return list(self._query(args).before)
 
     def hub(self, location: str) -> Hub:
         """Return the hub at exactly ``location``."""
@@ -204,7 +228,7 @@ class Uhubctl:
             args += ["-w", str(wait_ms)]
         if reset:
             args.append("-R")
-        return parse_action(self.run(args))
+        return self._query(args)
 
     def off(self, location: str, ports: int | Iterable[int] | str | None = None, **kw: Any) -> ActionResult:
         return self.action(Action.OFF, location, ports, **kw)

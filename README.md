@@ -18,6 +18,11 @@ adds a scripting-friendly CLI with JSON output. It has no runtime dependencies.
 
    If it is not on `PATH`, set `UHUBCTL_PATH=/path/to/uhubctl`.
 
+   Stock uhubctl works. The fork at [Sleepy9099/uhubctl](https://github.com/Sleepy9099/uhubctl) adds
+   `--json` output and a non-zero exit status when a port fails to switch. uhubctl-py detects `--json`
+   and uses it automatically, which also fills `Device.vendor`, `.product` and `.serial`. CI for the fork
+   publishes a ready-to-use Windows build (`uhubctl-windows-x64`) as an artifact.
+
 2. Install this package:
 
    ```bash

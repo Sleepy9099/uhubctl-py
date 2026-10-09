@@ -1,6 +1,6 @@
 from pathlib import Path
 
-from uhubctl_py import HubInfo, parse_action, parse_description, parse_status
+from uhubctl_py import HubInfo, parse_action, parse_description, parse_json, parse_status
 
 FIXTURES = Path(__file__).parent / "fixtures"
 
@@ -67,3 +67,38 @@ def test_non_hub_description_without_strings():
 def test_ganged_hub_description():
     d = parse_description("05e3:0610 GenesysLogic USB2.1 Hub, USB 2.10, 4 ports, ganged")
     assert isinstance(d, HubInfo) and d.power_switching == "ganged"
+
+
+def _without_strings(hub):
+    """Text output can't split vendor/product/serial, so compare without them."""
+    from dataclasses import replace
+
+    def strip(d):
+        return d and replace(d, vendor="", product="", serial="")
+
+    return replace(
+        hub,
+        info=strip(hub.info),
+        ports=tuple(replace(p, device=strip(p.device)) for p in hub.ports),
+    )
+
+
+def test_json_matches_text():
+    text_hubs = parse_status(read("macos_via_pair.txt"))
+    json_hubs = parse_json(read("macos_via_pair.json")).before
+    assert [_without_strings(h) for h in json_hubs] == text_hubs
+
+
+def test_json_device_strings():
+    hub = parse_json(read("macos_via_pair.json")).before[0]
+    assert hub.info.vendor == "VIA Labs, Inc."
+    assert hub.info.product.endswith("Hub")
+
+
+def test_json_cycle_steps():
+    result = parse_json(read("macos_via_cycle.json"))
+    assert {h.location for h in result.before} == {"1-1", "1-2"}
+    # off step then on step, each covering the USB2 and USB3 twins
+    assert len(result.after) == 4
+    assert not any(h.port(1).is_powered for h in result.after[:2])
+    assert all(h.port(1).is_powered for h in result.after[2:])

@@ -24,6 +24,11 @@ class Device:
     pid: str
     description: str
     """Free-form text after ``vid:pid`` (manufacturer, product, serial)."""
+    vendor: str = ""
+    product: str = ""
+    serial: str = ""
+    """``vendor``/``product``/``serial`` are only filled when uhubctl supports ``--json``;
+    the text output cannot be split reliably."""
 
     @property
     def id(self) -> str:
