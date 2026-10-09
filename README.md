@@ -71,6 +71,27 @@ uhubctl-py --sudo off 3-1 -p 2   # Linux/WSL without udev rules
 
 `python -m uhubctl_py` works too.
 
+### Keeping a device on the bus
+
+Some devices only appear briefly after power is applied, such as phones in a boot ROM or download
+mode, which time out and continue booting. `hold` watches a port and power-cycles it whenever the
+device drops off:
+
+```text
+uhubctl-py hold 1-1.3 -p 1 --device 1782:4d00
+19:16:12 +   0.03s present   1782:4d00
+19:16:58 +  45.97s dropped
+19:17:00 +  47.29s power_off cycle 1, off for 2s
+19:17:02 +  49.35s power_on  cycle 1
+19:17:05 +  52.19s present   1782:4d00 (off time 2s)
+```
+
+The first power-off is short (`--off-time`, default 2 s). If the device doesn't return within
+`--appear-timeout` (5 s), each later power-off is `--off-step` (2 s) longer, up to `--max-off-time`
+(15 s). The off time that works is kept, unless you pass `--reset-off-time`. `--max-cycles` limits
+attempts, and `--json` prints one event per line. From Python, use `uhubctl_py.hold.hold()`, which
+yields the same events.
+
 ## Development
 
 ```bash

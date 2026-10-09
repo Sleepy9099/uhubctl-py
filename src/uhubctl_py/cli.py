@@ -6,10 +6,12 @@ import argparse
 import dataclasses
 import json
 import sys
+import time
 from collections.abc import Sequence
 
 from . import __version__
 from .client import Uhubctl, UhubctlError
+from .hold import hold
 from .models import Action, Hub
 
 
@@ -56,6 +58,18 @@ def build_parser() -> argparse.ArgumentParser:
             p.add_argument("-d", "--delay", type=float, default=2.0)
         p.add_argument("-e", "--exact", action="store_true", help="no USB2/USB3 twin handling")
         p.add_argument("-R", "--reset", action="store_true", help="reset hub after power on")
+
+    h = sub.add_parser("hold", help="power-cycle a port whenever its device drops off (Ctrl-C to stop)")
+    h.add_argument("location", help="hub location, e.g. 1-1.3")
+    h.add_argument("-p", "--port", type=int, required=True)
+    h.add_argument("--device", help="vid:pid to wait for, e.g. 1782:4d00 (default: any device)")
+    h.add_argument("--off-time", type=float, default=2.0, help="first power-off duration, seconds [2]")
+    h.add_argument("--off-step", type=float, default=2.0, help="added to off time after each miss [2]")
+    h.add_argument("--max-off-time", type=float, default=15.0, help="longest power-off, seconds [15]")
+    h.add_argument("--reset-off-time", action="store_true", help="restart from --off-time after each success")
+    h.add_argument("--appear-timeout", type=float, default=5.0, help="seconds to wait after power on [5]")
+    h.add_argument("--grace", type=float, default=1.0, help="seconds missing before cycling [1]")
+    h.add_argument("--max-cycles", type=int, help="stop after this many power cycles")
     return ap
 
 
@@ -69,6 +83,31 @@ def main(argv: Sequence[str] | None = None) -> int:
                 print(_to_json(hubs))
             else:
                 _print_hubs(hubs)
+        elif args.cmd == "hold":
+            events = hold(
+                ctl,
+                args.location,
+                args.port,
+                args.device,
+                off_time=args.off_time,
+                off_step=args.off_step,
+                max_off_time=args.max_off_time,
+                reset_off_time=args.reset_off_time,
+                appear_timeout=args.appear_timeout,
+                grace=args.grace,
+                max_cycles=args.max_cycles,
+            )
+            try:
+                for e in events:
+                    if args.json:
+                        print(json.dumps(dataclasses.asdict(e)), flush=True)
+                    else:
+                        print(
+                            f"{time.strftime('%H:%M:%S')} +{e.elapsed:7.2f}s {e.kind:9} {e.detail}",
+                            flush=True,
+                        )
+            except KeyboardInterrupt:
+                pass
         elif args.cmd == "find":
             matches = ctl.find_device(args.text)
             if args.json:
